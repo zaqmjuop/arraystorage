@@ -1,0 +1,28 @@
+{
+  "name": "arraydb",
+  "version": "1.0.0",
+  "description": "a simple helper for use indexeddb easily just like Array",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zaqmjuop/arraydb"
+  },
+  "main": "basic.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "parcel index.html -p 3000",
+    "buildjs": "parcel build index.js -d ./docs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "presets": [
+    "env"
+  ],
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
+    "eslint": "^4.19.1",
+    "eslint-config-airbnb-base": "^13.0.0",
+    "eslint-plugin-import": "^2.13.0"
+  }
+}

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <style>
+    .inline {
+      display: inline;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <div class="inline">
+      <button id="getAll">取出全部数据库</button>
+    </div>
+    <br>
+    <div class="inline">
+      <span>name:&ensp; </span>
+      <input id="name" type="text">
+    </div>
+    <span>&emsp;&emsp;</span>
+    <div class="inline">
+      <span>email:&ensp;</span>
+      <input id="email" type="text">
+    </div>
+    <span>&ensp;</span>
+    <div class="inline">
+      <button id="push">添加</button>
+    </div>
+    <br>
+    <div class="inline">
+      <span>primaryKey:&ensp;</span>
+      <input id="primaryKey" type="number">
+    </div>
+    <div class="inline">
+      <button id="update">更新</button>
+      <button id="get">用主键查询</button>
+    </div>
+    <br>
+  </div>
+  <br>
+  <div class="body">
+    <table id="board" border="1">
+      <tr name="title">
+        <th>primaryKey</th>
+        <th>name</th>
+        <th>email</th>
+        <th>buttons</th>
+      </tr>
+    </table>
+  </div>
+
+
+  <script src="index.js"></script>
+</body>
+
+</html>
