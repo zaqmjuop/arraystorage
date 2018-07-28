@@ -1,19 +1,23 @@
 {
-  "name": "arraydb",
+  "author": "zaqmjuop",
+  "name": "arraystorage",
   "version": "1.0.0",
   "description": "a simple helper for use indexeddb easily just like Array",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zaqmjuop/arraydb"
+    "url": "https://github.com/zaqmjuop/arraystorage.git"
   },
-  "main": "basic.js",
+  "engines": {
+    "node": "*"
+  },
+  "directories": {},
+  "main": "docs/arraystorage.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "parcel index.html -p 3000",
-    "buildjs": "parcel build index.js -d ./docs"
+    "buildjs": "parcel build index.js -d ./docs && parcel build arraystorage.js -d ./docs"
   },
   "keywords": [],
-  "author": "",
   "license": "ISC",
   "presets": [
     "env"

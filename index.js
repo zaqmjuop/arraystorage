@@ -1,4 +1,4 @@
-import Store from './arraydb';
+import Store from './arraystorage';
 
 const store = new Store();
 const nameInput = document.querySelector('#name');

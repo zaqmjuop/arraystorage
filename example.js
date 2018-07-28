@@ -1,4 +1,4 @@
-import Store from './arraydb';
+import Store from './arraystorage';
 
 // 计数器
 let count = 0;
