@@ -17,7 +17,7 @@ store.getAll().then(() => console.log('数据库已加载'))
 ```
 #### 方式二： 直接使用 html 标签
 ```html
-<script src="index.js"></script>
+<script src="https://github.com/zaqmjuop/arraystorage/blob/master/docs/arraystorage.js"></script>
 <script>
   const store = new ArrayStorage();
   store.getAll().then(() => console.log('数据库已加载'))
