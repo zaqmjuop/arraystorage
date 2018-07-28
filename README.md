@@ -47,7 +47,7 @@ store.push([{name: 'name2'}, {name: 'name3'}]).then(primaryKeys => primaryKeys) 
 > get([primaryKey])
 ```JavaScript
 store.get(1).then(primaryKeys => primaryKeys) 
-// {name: 'name1', primaryKey: 1}
+// [{name: 'name1', primaryKey: 1}]
 store.get([2, 3]).then(primaryKeys => primaryKeys) 
 // [{name: 'name2', primaryKey: 2}, {name: 'name3', primaryKey: 3}]
 ```
