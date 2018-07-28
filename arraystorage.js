@@ -391,4 +391,5 @@ class Store {
   }
 }
 
+window.ArrayStorage = Store;
 export default Store;
