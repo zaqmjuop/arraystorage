@@ -76,65 +76,44 @@ class Store {
 
   openDB() {
     // 打开数据库 并为数据库绑定事件
-    let promise;
-    if (!this.database || this.database.state !== 'open' || this.database.version !== this.version) {
-      promise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(this.databaseName, this.version);
-        request.onupgradeneeded = (event) => {
-          const db = event.target.result;
-          const store = this.objectStoreName;
-          if (!db.objectStoreNames.contains(store)) {
-            db.createObjectStore(store, { keyPath: 'primaryKey', autoIncrement: true });
-          }
-        };
-        request.onsuccess = (event) => {
-          const database = event.target.result;
-          database.onclose = () => {
-            database.state = 'closed';
-          };
-          database.onabort = () => {
-            database.close();
-          };
-          database.onversionchange = () => {
-            this.database = database;
-            this.version = database.version;
-          };
-          database.state = 'open';
-          this.database = database;
-          resolve(this.database);
-        };
-        request.onerror = (event) => {
-          reject(event.target.error);
-        };
-      });
-    } else {
-      promise = new Promise(() => this.database);
-    }
-    return this.catchPromise(promise, 'Store.openDB');
-  }
-
-  prepare() {
-    // 打开数据库 并保证数据库是 打开状态，且有objectStore
-    const promise = this.openDB()
-      .then((database) => {
-        // 防止database是关闭状态
-        let result = database;
-        if (database.state === 'closed') {
-          result = this.openDB();
-        }
-        return result;
-      })
-      .then((database) => {
-        // 防止database没有objectStore
-        let result = database;
+    const open = new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.databaseName, this.version);
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
         const store = this.objectStoreName;
-        if (!database.objectStoreNames.contains(store)) {
-          this.version += 1;
-          result = this.openDB();
+        if (!db.objectStoreNames.contains(store)) {
+          db.createObjectStore(store, { keyPath: 'primaryKey', autoIncrement: true });
         }
-        return result;
-      }).then(() => this.database);
-    return this.catchPromise(promise, 'Store.prepare');
+      };
+      request.onsuccess = (event) => {
+        const database = event.target.result;
+        database.onclose = () => {
+          database.state = 'closed';
+        };
+        database.onabort = () => {
+          database.close();
+        };
+        database.onversionchange = () => {
+          this.database = database;
+          this.version = database.version;
+        };
+        database.state = 'open';
+        this.database = database;
+        resolve(this.database);
+      };
+      request.onerror = (event) => {
+        reject(event.target.error);
+      };
+    });
+    const solve = open.catch((error) => {
+      console.error(error);
+      this.version = this.database.version;
+      if (!this.database.objectStoreNames.contains(this.objectStoreName)) {
+        this.version += 1;
+      }
+      return open;
+    });
+    return this.catchPromise(solve, 'Store.openDB');
   }
 
   ready() {
@@ -144,7 +123,7 @@ class Store {
       && this.database.objectStoreNames.contains(this.objectStoreName);
     const promise = (isPrepared)
       ? this.currentPromise.then(() => this.database)
-      : this.prepare();
+      : this.openDB();
     return this.catchPromise(promise, 'Store.ready');
   }
 
