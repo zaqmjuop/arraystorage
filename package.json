@@ -1,7 +1,7 @@
 {
   "author": "zaqmjuop",
   "name": "arraystorage",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "a simple helper for use indexeddb easily just like Array",
   "repository": {
     "type": "git",
