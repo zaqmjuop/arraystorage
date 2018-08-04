@@ -49,6 +49,7 @@ class Store {
     // databaseName数据库名 默认window.location.hostname
     // objectStoreName 数据库表名的 默认 `store${counter()}`
     // currentPromise 执行链
+    if (new.target !== Store) { throw new Error('必须使用 new 命令生成实例'); }
     const config = {};
     config.id = counter();
     config.databaseName = option.databaseName || defaultConfig.databaseName;
@@ -56,22 +57,22 @@ class Store {
     if (config.id > 1) { config.databaseName = `${config.databaseName}${config.id}`; }
     this.databaseName = config.databaseName;
     this.objectStoreName = config.objectStoreName;
-    this.currentPromise = new Promise(resolve => resolve(1));
     return this;
   }
 
-  catchPromise(promise, msg) {
-    // 给Promise添加catch
+  pushPromise(promise, msg) {
+    // 给currentPromise添加promise
     if (!(promise instanceof Promise)) { throw new TypeError(`${promise}不是Promise实例对象`); }
     if (msg && typeof msg !== 'string') { throw new TypeError(`Error message: ${msg} 不是字符串`); }
-    const result = promise.catch((error) => {
-      console.error(msg, this, error);
-      throw error;
-    });
-    // this.currentPormise // 执行链
-    // 返回currentPromise的ready在每个方法开头 结尾又被catchPromise抓取
-    this.currentPromise = result;
-    return result;
+    this.currentPromise = this.getCurrentPromise()
+      .then(() => promise)
+      .catch((error) => {
+        console.error(msg, error, this);
+        throw error;
+      });
+    // this.currentPormise 执行链
+    // 返回currentPromise的ready在每个方法开头 结尾又被pushPromise抓取
+    return this.currentPromise;
   }
 
   openDB() {
@@ -105,86 +106,89 @@ class Store {
         reject(event.target.error);
       };
     });
-    const solve = open.catch((error) => {
-      console.error(error);
+    const catched = open.catch((error) => {
+      console.error(`Store.openDB ${error}`);
       this.version = this.database.version;
       if (!this.database.objectStoreNames.contains(this.objectStoreName)) {
         this.version += 1;
       }
       return open;
     });
-    return this.catchPromise(solve, 'Store.openDB');
+    return catched;
   }
 
   ready() {
     // 返回promise resolve已经准备好的数据库
-    const isPrepared = this.database instanceof IDBDatabase
-      && this.database.state === 'open'
-      && this.database.objectStoreNames.contains(this.objectStoreName);
-    const promise = (isPrepared)
-      ? this.currentPromise.then(() => this.database)
+    const promise = (this.isPrepared())
+      ? Promise.resolve(this.database)
       : this.openDB();
-    return this.catchPromise(promise, 'Store.ready');
+    const catched = promise
+      .catch((err) => {
+        console.error(`Store.ready ${err}`);
+        throw err;
+      });
+    return catched;
   }
 
-  objectStore() {
+  isPrepared() {
+    // 返回数据库是否准备好
+    return this.database instanceof IDBDatabase
+      && this.database.state === 'open'
+      && this.database.objectStoreNames.contains(this.objectStoreName);
+  }
+
+  getStore() {
     // 返回objectStore
-    const promise = this.ready()
-      .then((db) => {
-        const store = this.objectStoreName;
-        const transaction = db.transaction([store], 'readwrite');
-        const objectStore = transaction.objectStore(store);
-        return objectStore;
-      });
-    return this.catchPromise(promise, 'Store.objectStore');
+    if (!this.isPrepared()) { throw new ReferenceError('Store.getStore 数据库未准备好'); }
+    return this.database.transaction(['store'], 'readwrite').objectStore('store');
+  }
+
+  getCurrentPromise() {
+    // 返回this.currentPromise
+    if (!this.currentPromise || !this.isPrepared()) {
+      this.currentPromise = this.ready();
+    }
+    return this.currentPromise;
   }
 
   clear() {
     // 清空数据库
-    const promise = this.objectStore()
-      .then((objectStore) => {
-        const request = objectStore.clear();
+    const promise = this.ready()
+      .then(() => {
+        const request = this.getStore().clear();
         return formatRequest(request);
       });
-    const catched = this.catchPromise(promise, 'Store.clear');
-    return catched;
+    return this.pushPromise(promise, 'Store.clear');
   }
 
   getAll() {
     // 获取整个数据库
     // 返回promise resolve(datas) datas是整个数据库组成的数组
-    const promise = this.objectStore()
-      .then((objectStore) => {
-        const request = objectStore.getAll();
+    const promise = this.ready()
+      .then(() => {
+        const request = this.getStore().getAll();
         return formatRequest(request);
       });
-    const catched = this.catchPromise(promise, 'Store.getAll');
-    return catched;
+    return this.pushPromise(promise, 'Store.getAll');
   }
 
   remove(primaryKey) {
     // 删除数据 remove(primaryKey) 和 remove([primaryKey1, primaryKey2])
     // 返回promise resolve() primaryKeys是删除的数据的主键组成的数组
     const primaryKeys = (primaryKey instanceof Array) ? primaryKey : [primaryKey];
-    let errorMsg;
     const position = 'Store.remove';
     primaryKeys.forEach((key) => {
-      if (!Number.isSafeInteger(key)) { errorMsg = `${position} primaryKey只接受Integer，不能是${key}`; }
-      if (errorMsg) { throw new Error(errorMsg); }
+      if (!Number.isSafeInteger(key)) { throw new TypeError(`${position} primaryKey只接受Integer，不能是${key}`); }
     });
-    let store;
-    let promise = this.objectStore()
-      .then((objectStore) => {
-        store = objectStore;
-      });
+    let promise = this.ready();
     primaryKeys.forEach((key) => {
       promise = promise.then(() => {
-        const request = store.delete(key);
+        const request = this.getStore().delete(key);
         return formatRequest(request);
       });
     });
     promise = promise.then(() => primaryKeys);
-    return this.catchPromise(promise, position);
+    return this.pushPromise(promise, position);
   }
 
   get(primaryKey) {
@@ -192,59 +196,48 @@ class Store {
     // 返回promise resolve(datas) datas是结果组成的数组
     const primaryKeys = (primaryKey instanceof Array) ? primaryKey : [primaryKey];
     const datas = [];
-    let errorMsg;
     const position = 'Store.get';
     primaryKeys.forEach((key) => {
-      if (!Number.isSafeInteger(key)) { errorMsg = `${position} primaryKey只接受Integer，不能是${key}`; }
-      if (errorMsg) { throw new Error(errorMsg); }
+      if (!Number.isSafeInteger(key)) { throw new TypeError(`${position} primaryKey只接受Integer，不能是${key}`); }
     });
-    let store;
-    let promise = this.objectStore()
-      .then((objectStore) => {
-        store = objectStore;
-      });
+    let promise = this.ready();
     primaryKeys.forEach((key) => {
-      promise = promise.then(() => {
-        const request = store.get(key);
-        return formatRequest(request);
-      }).then((data) => {
-        datas.push(data);
-      });
+      promise = promise
+        .then(() => {
+          const request = this.getStore().get(key);
+          return formatRequest(request);
+        }).then((data) => {
+          datas.push(data);
+        });
     });
     promise = promise.then(() => datas);
-    return this.catchPromise(promise, position);
+    return this.pushPromise(promise, position);
   }
 
   push(data) {
     // 新增数据 push(data) 和 push([data1, data2])
     // 返回promise resolve(primaryKeys) primaryKeys是添加的数据的主键组成的数组
-    let errorMsg;
     const position = 'Store.push';
     const datas = (data instanceof Array) ? data : [data];
     const primaryKeys = [];
     datas.forEach((item) => {
-      if (!(item instanceof Object)) { errorMsg = `${position} item只接受对象，不能是${item}`; }
+      if (!(item instanceof Object)) { throw new TypeError(`${position} item只接受对象，不能是${item}`); }
       if (item.primaryKey) {
-        errorMsg = `${position} data.primaryKey只接受null或undefiend，不能是${item.primaryKey}`;
+        throw new TypeError(`${position} data.primaryKey只接受null或undefiend，不能是${item.primaryKey}`);
       }
-      if (errorMsg) { throw new Error(errorMsg); }
     });
-    let store;
-    let promise = this.objectStore()
-      .then((objectStore) => {
-        store = objectStore;
-      });
+    let promise = this.ready();
     datas.forEach((item) => {
       promise = promise
         .then(() => {
-          const request = store.add(item);
+          const request = this.getStore().add(item);
           return formatRequest(request);
         }).then((primaryKey) => {
           primaryKeys.push(primaryKey);
         });
     });
     promise = promise.then(() => primaryKeys);
-    return this.catchPromise(promise, position);
+    return this.pushPromise(promise, position);
   }
 
   update(data) {
@@ -252,33 +245,27 @@ class Store {
     // update(data) 或 update([data1, data2])
     // 返回promise resolve(primaryKeys) primaryKeys是更新后的主键
     // data应该有Integer类型的data.primaryKey
-    let errorMsg;
     const position = 'Store.update';
     const datas = (data instanceof Array) ? data : [data];
     const primaryKeys = [];
     datas.forEach((item) => {
-      if (!(item instanceof Object)) { errorMsg = `${position} data只接受对象，不能是${item}`; }
+      if (!(item instanceof Object)) { throw new TypeError(`${position} data只接受对象，不能是${item}`); }
       if (!item.primaryKey || !Number.isSafeInteger(item.primaryKey)) {
-        errorMsg = `${position} data.primaryKey只接受Integer，不能是${item.primaryKey}`;
+        throw new TypeError(`${position} data.primaryKey只接受Integer，不能是${item.primaryKey}`);
       }
-      if (errorMsg) { throw new Error(errorMsg); }
     });
-    let store;
-    let promise = this.objectStore()
-      .then((objectStore) => {
-        store = objectStore;
-      });
+    let promise = this.ready();
     datas.forEach((item) => {
       promise = promise
         .then(() => {
-          const request = store.put(item);
+          const request = this.getStore().put(item);
           return formatRequest(request);
         }).then((primaryKey) => {
           primaryKeys.push(primaryKey);
         });
     });
     promise = promise.then(() => primaryKeys);
-    return this.catchPromise(promise, position);
+    return this.pushPromise(promise, position);
   }
 
   formatOpenCursorWithSuccessCallback(successCallback) {
@@ -287,9 +274,9 @@ class Store {
     // 接受一个successCallback 若successCallback有除了undefined以外的返回值 则resolve
     const position = 'Store.formatOpenCursorWithSuccessCallback';
     validateCallback(successCallback, position);
-    const promise = this.objectStore()
-      .then((objectStore) => {
-        const request = objectStore.openCursor();
+    const promise = this.ready()
+      .then(() => {
+        const request = this.getStore().openCursor();
         const bindRequestEvents = new Promise((resolve, reject) => {
           // success callback
           request.onsuccess = (event) => {
@@ -303,7 +290,7 @@ class Store {
         });
         return bindRequestEvents;
       });
-    return this.catchPromise(promise, position);
+    return this.pushPromise(promise, position);
   }
 
   find(callback) {
@@ -326,7 +313,7 @@ class Store {
       return result;
     };
     const promise = this.formatOpenCursorWithSuccessCallback(successCallback);
-    return this.catchPromise(promise, position);
+    return this.pushPromise(promise, position);
   }
 
   filter(callback) {
@@ -346,7 +333,7 @@ class Store {
     };
     const promise = this.formatOpenCursorWithSuccessCallback(successCallback)
       .then(() => result);
-    return this.catchPromise(promise, position);
+    return this.pushPromise(promise, position);
   }
 
   map(callback) {
@@ -366,7 +353,7 @@ class Store {
     };
     const promise = this.formatOpenCursorWithSuccessCallback(successCallback)
       .then(() => result);
-    return this.catchPromise(promise, position);
+    return this.pushPromise(promise, position);
   }
 }
 
